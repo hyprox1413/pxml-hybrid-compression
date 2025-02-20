@@ -18,10 +18,18 @@ from models.conv import Autoencoder
 
 BATCH_SIZE = 16
 
+SAMPLE_IMAGE_IDX = int(sys.argv[1])
+
 NUM_IMAGES = 1000
-NUM_FILTERS = 25
-KERNEL_SIZE = 10
-STRIDE = 10
+PURE_NUM_FILTERS = 12
+HYBRID_NUM_FILTERS = 6
+PURE_SCALE = 10
+HYBRID_SCALE = 5
+IMAGE_RANK = 20
+LATENT_RANK = 50
+
+PURE_MODEL_DIR = f"saved_models/x{PURE_SCALE}"
+HYBRID_MODEL_DIR = f"saved_models/x{HYBRID_SCALE}"
 
 IMAGE_HEIGHT = 1000
 IMAGE_WIDTH = 1000
@@ -78,36 +86,71 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=True)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=True)
 
-    model = Autoencoder(num_filters=NUM_FILTERS, kernel_size=KERNEL_SIZE, stride=STRIDE).to(device)
+    pure_model = Autoencoder(num_filters=PURE_NUM_FILTERS, kernel_size=PURE_SCALE, stride=PURE_SCALE).to(device)
+    hybrid_model = Autoencoder(num_filters=HYBRID_NUM_FILTERS, kernel_size=HYBRID_SCALE, stride=HYBRID_SCALE).to(device)
 
     try:
-        model.load_state_dict(torch.load(get_most_recent_file("saved_models"), weights_only=True))
+        pure_model.load_state_dict(torch.load(get_most_recent_file(PURE_MODEL_DIR), weights_only=True))
+        hybrid_model.load_state_dict(torch.load(get_most_recent_file(HYBRID_MODEL_DIR), weights_only=True))
     except:
         print("no saved models.")
         quit()
+    
+    hybrid_encoder, hybrid_decoder = hybrid_model.encoder, hybrid_model.decoder
 
     loss_fn = torch.nn.MSELoss()
 
     # testing loop
     total_loss = 0
-    model.eval()
+    pure_model.eval()
     for data in test_loader:
         with torch.no_grad():
-            loss = loss_fn(model(data), data)
+            loss = loss_fn(pure_model(data), data)
             total_loss += loss.item()
 
-    print(f'average testing loss: {total_loss / len(test_data)}')
+    print(f'average pure model testing loss: {total_loss / len(test_data)}')
 
-    """
-    image = channels_last(test_data[0].cpu().numpy()) * 256
+    # testing loop
+    total_loss = 0
+    hybrid_model.eval()
+    for data in test_loader:
+        with torch.no_grad():
+            loss = loss_fn(hybrid_model(data), data)
+            total_loss += loss.item()
+
+    print(f'average hybrid model testing loss: {total_loss / len(test_data)}')
+
+    image = channels_last(test_data[SAMPLE_IMAGE_IDX].cpu().numpy()) * 256
     image = image.clip(0, 255).astype(np.uint8)
 
-    recons_conv = channels_last(model(test_data[0]).detach().cpu().numpy()) * 256
+    recons_conv = channels_last(pure_model(test_data[SAMPLE_IMAGE_IDX]).detach().cpu().numpy()) * 256
     recons_conv = recons_conv.clip(0, 255).astype(np.uint8)
 
-    reduced = svd_reduce(test_data[0].cpu().numpy(), 42)
+    reduced = svd_reduce(test_data[SAMPLE_IMAGE_IDX].cpu().numpy(), IMAGE_RANK)
     recons_svd = channels_last(reduced * 256)
     recons_svd = recons_svd.clip(0, 255).astype(np.uint8)
+
+    hybrid = channels_last(hybrid_decoder(torch.from_numpy(svd_reduce(hybrid_encoder(test_data[SAMPLE_IMAGE_IDX]).detach().cpu().numpy(), LATENT_RANK)).to(device)).detach().cpu().numpy()) * 256
+    hybrid = hybrid.clip(0, 255).astype(np.uint8)
+
+    try:
+        os.mkdir(f"test_images/{SAMPLE_IMAGE_IDX}")
+    except:
+        pass
+    
+    image = Image.fromarray(image)
+    image.save(f"test_images/{SAMPLE_IMAGE_IDX}/original.png")
+
+    recons_conv = Image.fromarray(recons_conv)
+    recons_conv.save(f"test_images/{SAMPLE_IMAGE_IDX}/conv.png")
+
+    recons_svd = Image.fromarray(recons_svd)
+    recons_svd.save(f"test_images/{SAMPLE_IMAGE_IDX}/svd.png")
+
+    hybrid = Image.fromarray(hybrid)
+    hybrid.save(f"test_images/{SAMPLE_IMAGE_IDX}/hybrid.png")
+
+    quit()
 
     plt.imshow(image)
     plt.show()
@@ -115,27 +158,34 @@ def main():
     plt.show()
     plt.imshow(recons_svd)
     plt.show()
-    """
+    plt.imshow(hybrid)
+    plt.show()
 
     frob_distance_conv = 0
     frob_distance_svd = 0
+    frob_distance_hybrid = 0
 
     for i in range(len(test_data)):
         image = channels_last(test_data[i].cpu().numpy())
-        # image = image.clip(0, 255)
+        image = image.clip(0, 255)
 
-        recons_conv = channels_last(model(test_data[i]).detach().cpu().numpy())
-        # recons_conv = recons_conv.clip(0, 255)
+        recons_conv = channels_last(pure_model(test_data[i]).detach().cpu().numpy())
+        recons_conv = recons_conv.clip(0, 255)
 
-        reduced = svd_reduce(test_data[i].cpu().numpy(), 42)
+        reduced = svd_reduce(test_data[i].cpu().numpy(), IMAGE_RANK)
         recons_svd = channels_last(reduced)
-        # recons_svd = recons_svd.clip(0, 255)
+        recons_svd = recons_svd.clip(0, 255)
     
+        hybrid = channels_last(hybrid_decoder(torch.from_numpy(svd_reduce(hybrid_encoder(test_data[0]).detach().cpu().numpy(), LATENT_RANK)).to(device)).detach().cpu().numpy()) * 256
+        hybrid = hybrid.clip(0, 255).astype(np.uint8)
+
         frob_distance_conv += frob_distance(image, recons_conv)
         frob_distance_svd += frob_distance(image, recons_svd)
+        frob_distance_hybrid += frob_distance(image, hybrid)
 
     print(frob_distance_conv / len(test_data))
     print(frob_distance_svd / len(test_data))
+    print(frob_distance_hybrid / len(test_data))
 
 if __name__ == '__main__':
     main()

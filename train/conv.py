@@ -20,9 +20,8 @@ NUM_EPOCHS = 100
 LEARNING_RATE = 1e-3
 
 NUM_IMAGES = 1000
-NUM_FILTERS = 25
-KERNEL_SIZE = 10
-STRIDE = 10
+NUM_FILTERS = 6
+SCALE = 5
 
 def main():
     torch.manual_seed(0)
@@ -50,7 +49,7 @@ def main():
     val_loader = torch.utils.data.DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False)
     test_loader = torch.utils.data.DataLoader(test_data, batch_size=BATCH_SIZE, shuffle=False)
 
-    model = Autoencoder(num_filters=NUM_FILTERS, kernel_size=KERNEL_SIZE, stride=STRIDE).to(device)
+    model = Autoencoder(num_filters=NUM_FILTERS, kernel_size=SCALE, stride=SCALE).to(device)
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
     loss_fn = torch.nn.MSELoss()
@@ -80,7 +79,7 @@ def main():
 
         if (total_loss < best_val_loss):
             best_val_loss = total_loss
-            model_save_path = Path("./saved_models") / (time_str + ".pth")
+            model_save_path = Path(f"./saved_models/x{SCALE}") / (time_str + ".pth")
             torch.save(model.state_dict(), model_save_path)
 
         print(f'average validation loss: {total_loss / len(val_data)}')

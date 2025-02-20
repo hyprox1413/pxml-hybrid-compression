@@ -10,6 +10,8 @@ from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from PIL import Image
 
+random.seed(0)
+
 class JPGDataset(torch.utils.data.Dataset):
     def __init__(self, data_path, device, num_images=-1):
         self.device = device
