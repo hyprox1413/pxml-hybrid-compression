@@ -20,8 +20,8 @@ NUM_EPOCHS = 100
 LEARNING_RATE = 1e-3
 
 NUM_IMAGES = 1000
-NUM_FILTERS = 6
-SCALE = 5
+NUM_FILTERS = 40
+SCALE = 20
 
 def main():
     torch.manual_seed(0)

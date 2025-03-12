@@ -62,12 +62,12 @@ def svd_reduce(a: np.ndarray, rank):
     vt = svd_tuple[2][..., :rank, :]
     return u @ s @ vt
 
-def frob_distance(a: np.ndarray, b: np.ndarray):
+def frob_distance_sqr(a: np.ndarray, b: np.ndarray):
     assert a.shape == b.shape, "arrays should be same shape"
     rows, columns = a.shape[-2:]
     a = a.reshape(-1, rows, columns)
     b = b.reshape(-1, rows, columns)
-    return np.sum(np.stack([la.norm(a[i] - b[i], ord='fro') for i in range(a.shape[0])]))
+    return np.sum(np.stack([la.norm(a[i] - b[i], ord='fro') ** 2 for i in range(a.shape[0])]))
 
 def main():
     torch.manual_seed(0)
@@ -98,6 +98,7 @@ def main():
     
     hybrid_encoder, hybrid_decoder = hybrid_model.encoder, hybrid_model.decoder
 
+    """
     loss_fn = torch.nn.MSELoss()
 
     # testing loop
@@ -119,6 +120,7 @@ def main():
             total_loss += loss.item()
 
     print(f'average hybrid model testing loss: {total_loss / len(test_data)}')
+    """
 
     image = channels_last(test_data[SAMPLE_IMAGE_IDX].cpu().numpy()) * 256
     image = image.clip(0, 255).astype(np.uint8)
