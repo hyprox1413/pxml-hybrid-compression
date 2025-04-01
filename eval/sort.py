@@ -16,6 +16,7 @@ from PIL import Image
 
 from data_loaders.my_image_datasets import JPGDataset
 from models.conv import Autoencoder
+from utils.utils import *
 
 """
 BATCH_SIZE = 16
@@ -43,23 +44,6 @@ def get_most_recent_file(str):
         return most_recent_file
     except FileNotFoundError:
         return None
-
-def channels_first(a: np.ndarray):
-    return a.swapaxes(a.ndim - 3, a.ndim - 1).swapaxes(a.ndim - 2, a.ndim - 1)
-
-def channels_last(a: np.ndarray):
-    return a.swapaxes(a.ndim - 3, a.ndim - 1).swapaxes(a.ndim - 3, a.ndim - 2)
-
-def svd_reduce(a: np.ndarray, rank):
-    svd_tuple = la.svd(a)
-    u = svd_tuple[0][..., :, :rank]
-    s = svd_tuple[1][..., :rank]
-    s_shape = s.shape[:-1]
-    s = s.reshape(-1, rank)
-    s = np.stack([np.diag(vector) for vector in s])
-    s = s.reshape(*s_shape, rank, rank)
-    vt = svd_tuple[2][..., :rank, :]
-    return u @ s @ vt
 
 def main():
     dump_file = open('test_images.pkl', 'rb')

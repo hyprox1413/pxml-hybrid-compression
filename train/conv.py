@@ -1,3 +1,4 @@
+import argparse
 import sys
 import os
 
@@ -15,15 +16,32 @@ from pathlib import Path
 from data_loaders.my_image_datasets import JPGDataset
 from models.conv import Autoencoder
 
+parser = argparse.ArgumentParser(
+        prog='TrainConv',
+        description='Trains a convolutional model for images')
+
+parser.add_argument('scale')
+parser.add_argument('filters')
+
+args = parser.parse_args()
+
 BATCH_SIZE = 16
 NUM_EPOCHS = 100
 LEARNING_RATE = 1e-3
 
 NUM_IMAGES = 1000
-NUM_FILTERS = 40
-SCALE = 20
+SCALE = int(args.scale)
+NUM_FILTERS = int(args.filters)
+
+MODEL_PATH = Path(f"saved_models/s{SCALE}-f{NUM_FILTERS}.pth")
 
 def main():
+    print(f"checking {MODEL_PATH}")
+    if MODEL_PATH.exists():
+        print("preexisting model found, exiting")
+        quit()
+
+    print("no preexisting model found, training")
     torch.manual_seed(0)
     if torch.cuda.is_available():
         device = torch.device('cuda')
@@ -31,8 +49,6 @@ def main():
     else:
         device = torch.device('cpu')
         print('cuda not available, using cpu')
-
-    time_str = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
 
     dataset = JPGDataset(Path('./unsplash/processed'), device, num_images=1000)
 
@@ -79,8 +95,7 @@ def main():
 
         if (total_loss < best_val_loss):
             best_val_loss = total_loss
-            model_save_path = Path(f"./saved_models/x{SCALE}") / (time_str + ".pth")
-            torch.save(model.state_dict(), model_save_path)
+            torch.save(model.state_dict(), MODEL_PATH)
 
         print(f'average validation loss: {total_loss / len(val_data)}')
 

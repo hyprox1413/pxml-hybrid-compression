@@ -1,3 +1,4 @@
+import argparse
 import math
 import os
 import pickle
@@ -16,57 +17,37 @@ from PIL import Image
 
 from data_loaders.my_image_datasets import JPGDataset
 from models.conv import Autoencoder
+from utils.utils import *
+
+parser = argparse.ArgumentParser(
+        prog='TrainConv',
+        description='Trains a convolutional model for images')
+
+parser.add_argument('pure_rank')
+parser.add_argument('pure_scale')
+parser.add_argument('pure_filters')
+parser.add_argument('hybrid_scale')
+parser.add_argument('hybrid_filters')
+parser.add_argument('hybrid_rank')
+
+args = parser.parse_args()
 
 BATCH_SIZE = 16
 
 NUM_IMAGES = 1000
-PURE_NUM_FILTERS = 40
-HYBRID_NUM_FILTERS = 10
-PURE_SCALE = 20
-HYBRID_SCALE = 5
-IMAGE_RANK = 16
-LATENT_RANK = 25
+PURE_NUM_FILTERS = int(args.pure_filters)
+HYBRID_NUM_FILTERS = int(args.hybrid_filters)
+PURE_SCALE = int(args.pure_scale)
+HYBRID_SCALE = int(args.hybrid_scale)
+IMAGE_RANK = int(args.pure_rank)
+LATENT_RANK = int(args.hybrid_rank)
 
-PURE_MODEL_DIR = f"saved_models/x{PURE_SCALE}"
-HYBRID_MODEL_DIR = f"saved_models/x{HYBRID_SCALE}"
+PURE_MODEL_PATH = Path(f"saved_models/s{PURE_SCALE}-f{PURE_NUM_FILTERS}.pth")
+HYBRID_MODEL_PATH = Path(f"saved_models/s{HYBRID_SCALE}-f{HYBRID_NUM_FILTERS}.pth")
+DUMP_PATH = Path(f"test_dumps/pr{IMAGE_RANK}-ps{PURE_SCALE}-pf{PURE_NUM_FILTERS}-hs{HYBRID_SCALE}-hf{HYBRID_NUM_FILTERS}-hr{LATENT_RANK}.pkl")
 
 IMAGE_HEIGHT = 1000
 IMAGE_WIDTH = 1000
-
-def get_most_recent_file(str):
-    path = Path(str)
-    try:
-        files = [f for f in path.iterdir() if f.is_file()]
-        if not files:
-            return None
-        most_recent_file = max(files, key=os.path.getmtime)
-        return most_recent_file
-    except FileNotFoundError:
-        return None
-
-def channels_first(a: np.ndarray):
-    return a.swapaxes(a.ndim - 3, a.ndim - 1).swapaxes(a.ndim - 2, a.ndim - 1)
-
-def channels_last(a: np.ndarray):
-    return a.swapaxes(a.ndim - 3, a.ndim - 1).swapaxes(a.ndim - 3, a.ndim - 2)
-
-def svd_reduce(a: np.ndarray, rank):
-    svd_tuple = la.svd(a)
-    u = svd_tuple[0][..., :, :rank]
-    s = svd_tuple[1][..., :rank]
-    s_shape = s.shape[:-1]
-    s = s.reshape(-1, rank)
-    s = np.stack([np.diag(vector) for vector in s])
-    s = s.reshape(*s_shape, rank, rank)
-    vt = svd_tuple[2][..., :rank, :]
-    return u @ s @ vt
-
-def frob_distance_sqr(a: np.ndarray, b: np.ndarray):
-    assert a.shape == b.shape, "arrays should be same shape"
-    rows, columns = a.shape[-2:]
-    a = a.flatten()
-    b = b.flatten()
-    return np.sum(np.square(a - b)) ** (1 / 2)
 
 def main():
     torch.manual_seed(0)
@@ -89,8 +70,8 @@ def main():
     hybrid_model = Autoencoder(num_filters=HYBRID_NUM_FILTERS, kernel_size=HYBRID_SCALE, stride=HYBRID_SCALE).to(device)
 
     try:
-        pure_model.load_state_dict(torch.load(get_most_recent_file(PURE_MODEL_DIR), weights_only=True))
-        hybrid_model.load_state_dict(torch.load(get_most_recent_file(HYBRID_MODEL_DIR), weights_only=True))
+        pure_model.load_state_dict(torch.load(PURE_MODEL_PATH, weights_only=True))
+        hybrid_model.load_state_dict(torch.load(HYBRID_MODEL_PATH, weights_only=True))
     except:
         print("no saved models.")
         quit()
@@ -117,7 +98,7 @@ def main():
                             frob_distance_sqr(image, image) ** (1 / 2), frob_distance_sqr(image, recons_conv) ** (1 / 2),
                             frob_distance_sqr(image, recons_svd) ** (1 / 2), frob_distance_sqr(image, hybrid) ** (1 / 2)))
 
-    dump_file = open('test_images.pkl', 'wb')
+    dump_file = open(DUMP_PATH, 'wb')
     pickle.dump(images_list, dump_file)
 
 if __name__ == '__main__':
